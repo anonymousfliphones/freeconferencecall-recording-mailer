@@ -2,8 +2,11 @@ name: FCC recording mailer
 
 on:
   schedule:
-    # Every 30 minutes. Adjust to taste (cron is UTC).
-    - cron: "*/30 * * * *"
+    # Hourly, at minute 4 (avoids the :00 top-of-hour rush GitHub warns
+    # about). Worst case (every run finds new recordings, ~2 billed min
+    # each) is ~1,440 min/month -- safely inside the 2,000 free min/month
+    # quota for a private repo. Adjust cadence with billing math in mind.
+    - cron: "4 * * * *"
   workflow_dispatch: {}
 
 jobs:
