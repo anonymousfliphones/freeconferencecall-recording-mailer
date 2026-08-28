@@ -22,7 +22,11 @@ with a plain `requests` session — no browser automation needed at runtime.
 4. **Download** — streamed straight to disk with the same session.
 5. **Compress** — shells out to `ffmpeg`: mono, 16 kHz, 24 kbps MP3 (tunable),
    which keeps a typical hour-long call well under 15 MB.
-6. **Email** — sends the MP3 as an attachment via `smtplib`/`email` (Gmail SMTP + App Password by default).
+6. **Email** — sends the MP3 as an attachment via `smtplib`/`email` (Gmail
+   SMTP + App Password by default). `EMAIL_TO` accepts multiple
+   comma-separated addresses. The attachment filename and subject are named
+   by the call's own date/time (UTC) — e.g. `recording-2026-08-28_15-45.mp3`
+   — not the FCC reference number.
 7. **Track** — only after a successful send, the recording's ID is written to
    `downloaded_ids.json` and the local raw/MP3 files are deleted.
 
@@ -110,16 +114,52 @@ a `LoginError` or an HTTP error. To fix:
 
 ## Scheduling
 
-### Cron (Linux/macOS)
+### Current live setup: GitHub Actions, triggered by a Cloudflare Worker
+
+The workflow at `.github/workflows/fcc-mailer.yml` runs the script in the
+cloud (Ubuntu runner, real `ffmpeg` via `apt-get`) — no computer or browser
+needs to be on. It only has a `workflow_dispatch` trigger, no native
+`schedule` trigger, because of the finding below.
+
+**Why not GitHub's own `schedule` (cron) trigger?** We tried it first — set
+to hourly, then every 5 minutes — and it never fired a single time across
+2+ hours, a CLI push, and a web-UI edit, despite the workflow being fully
+enabled and correctly configured. This looked like a platform-side quirk
+specific to this repo rather than a config mistake (ruled out: workflow
+state, Actions permissions, billing/quota, account email verification, and
+GitHub status incidents). `workflow_dispatch`, by contrast, has been 100%
+reliable every time it's been called.
+
+So scheduling is now handled by a **separate Cloudflare Worker**
+(`fcc-mailer-trigger`, in the sibling `fcc-mailer-trigger-worker/` project)
+with its own Cron Trigger that fires hourly and calls GitHub's
+`workflow_dispatch` API — the same reliable trigger, just invoked
+externally instead of by GitHub's own (unreliable, for this repo) scheduler.
+See that project's own README for setup/redeploy instructions.
+
+A `concurrency` guard (`group: fcc-mailer`) is set on the workflow so two
+overlapping runs can't race each other — this is what caused a real
+duplicate email on 2026-08-28, when a manual test run landed ~24 seconds
+from the Worker's first automatic firing and both processed the same
+recording before either had saved the updated tracking file.
+
+Required repository secrets: `FCC_EMAIL`, `FCC_PASSWORD`, `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM`, `EMAIL_TO`. The
+workflow commits `downloaded_ids.json` back to the repo after each run so
+tracking state persists between runs (it is **not** gitignored — that's
+intentional; it's the state store).
+
+### Other ways to run it
+
+These all work too, if you'd rather not use GitHub Actions + Cloudflare:
+
+**Cron (Linux/macOS)**
 
 ```cron
 */15 * * * * cd /path/to/fcc-recording-mailer && venv/bin/python fcc_recording_mailer.py >> run.log 2>&1
 ```
 
-### Windows Task Scheduler
-
-Create a Basic Task that runs on a recurring trigger (e.g. every 15 minutes)
-with:
+**Windows Task Scheduler** — Basic Task on a recurring trigger:
 
 - Program/script: `C:\path\to\fcc-recording-mailer\venv\Scripts\python.exe`
 - Arguments: `fcc_recording_mailer.py`
@@ -133,21 +173,9 @@ $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (Ne
 Register-ScheduledTask -TaskName "FCC Recording Mailer" -Action $action -Trigger $trigger
 ```
 
-### GitHub Actions
-
-See `.github/workflows/fcc-mailer.yml` — runs every 30 minutes on a schedule.
-Add `FCC_EMAIL`, `FCC_PASSWORD`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`,
-`SMTP_PASSWORD`, `EMAIL_FROM`, `EMAIL_TO` as repository secrets. The workflow
-commits `downloaded_ids.json` back to the repo after each run so state
-persists between runs — reasonable for a low-frequency personal job, but swap
-it for a cache/artifact/external store if you'd rather not commit state to
-git, or if multiple runs could race.
-
-### Built-in loop mode
-
-`python fcc_recording_mailer.py --loop --interval 900` runs forever in the
-foreground, useful under `pm2`, `systemd`, `nssm` (Windows service wrapper),
-or a plain `screen`/`tmux` session.
+**Built-in loop mode** — `python fcc_recording_mailer.py --loop --interval 900`
+runs forever in the foreground, useful under `pm2`, `systemd`, `nssm`
+(Windows service wrapper), or a plain `screen`/`tmux` session.
 
 ## Configuration reference (`.env`)
 
@@ -160,7 +188,7 @@ or a plain `screen`/`tmux` session.
 | `SMTP_USERNAME` | yes | — | SMTP auth username |
 | `SMTP_PASSWORD` | yes | — | SMTP auth password / app password |
 | `EMAIL_FROM` | yes | — | From address |
-| `EMAIL_TO` | yes | — | Recipient address |
+| `EMAIL_TO` | yes | — | Recipient address(es) — comma-separated for multiple |
 | `MP3_BITRATE` | no | `24k` | ffmpeg audio bitrate |
 | `MP3_SAMPLE_RATE` | no | `16000` | ffmpeg sample rate (Hz) |
 | `WORK_DIR` | no | `./tmp` | Scratch dir for raw/compressed files (cleaned up after each recording) |
@@ -172,7 +200,12 @@ or a plain `screen`/`tmux` session.
 
 - Credentials are read only from environment variables / `.env` — never
   hardcode them.
-- `.gitignore` excludes `.env`, `downloaded_ids.json`, and temp/debug files.
+- `.gitignore` excludes `.env` and temp/debug files. `downloaded_ids.json`
+  is deliberately **not** gitignored when running via GitHub Actions — the
+  workflow commits it back to the repo as its persistent state store.
 - Use a Gmail **App Password**, not your primary account password, for SMTP.
 - The GitHub Actions example stores secrets in encrypted repo secrets, not in
   the workflow file.
+- The Cloudflare Worker's `GITHUB_TOKEN` secret only needs permission to
+  dispatch this one workflow — don't use a broad personal access token for
+  it if you set this up fresh.
