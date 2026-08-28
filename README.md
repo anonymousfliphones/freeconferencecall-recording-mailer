@@ -131,11 +131,11 @@ GitHub status incidents). `workflow_dispatch`, by contrast, has been 100%
 reliable every time it's been called.
 
 So scheduling is now handled by a **separate Cloudflare Worker**
-(`fcc-mailer-trigger`, in the sibling `fcc-mailer-trigger-worker/` project)
+(`fcc-mailer-trigger`, in this repo's `worker/` directory)
 with its own Cron Trigger that fires hourly and calls GitHub's
 `workflow_dispatch` API — the same reliable trigger, just invoked
 externally instead of by GitHub's own (unreliable, for this repo) scheduler.
-See that project's own README for setup/redeploy instructions.
+See [`worker/README.md`](worker/README.md) for setup/redeploy instructions.
 
 A `concurrency` guard (`group: fcc-mailer`) is set on the workflow so two
 overlapping runs can't race each other — this is what caused a real

@@ -3,3 +3,7 @@ tmp/
 debug_*.png
 __pycache__/
 *.pyc
+
+# worker/ (Cloudflare Worker) local state -- never commit
+worker/.wrangler/
+worker/node_modules/
