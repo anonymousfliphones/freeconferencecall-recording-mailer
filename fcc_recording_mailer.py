@@ -31,6 +31,7 @@ import smtplib
 import subprocess
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
@@ -303,7 +304,9 @@ def compress_audio(input_path: Path, output_path: Path, bitrate: str, sample_rat
 # Email
 # --------------------------------------------------------------------------
 
-def send_email(cfg: Config, subject: str, body: str, attachment_path: Path) -> None:
+def send_email(
+    cfg: Config, subject: str, body: str, attachment_path: Path, attachment_filename: str
+) -> None:
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = cfg.email_from
@@ -313,7 +316,7 @@ def send_email(cfg: Config, subject: str, body: str, attachment_path: Path) -> N
     with open(attachment_path, "rb") as f:
         data = f.read()
     msg.add_attachment(
-        data, maintype="audio", subtype="mpeg", filename=attachment_path.name
+        data, maintype="audio", subtype="mpeg", filename=attachment_filename
     )
 
     log.info("Sending email to %s via %s:%d", cfg.email_to, cfg.smtp_host, cfg.smtp_port)
@@ -353,7 +356,10 @@ def run_once(cfg: Config, dry_run: bool) -> None:
 
     for rec in new_recordings:
         rec_id = str(rec["conf_rec_id"])
-        label = f"Recording {rec.get('reference_number') or rec_id} ({rec.get('callers')} callers)"
+        call_date = datetime.fromtimestamp(rec.get("start_time", 0), tz=timezone.utc)
+        date_str = call_date.strftime("%Y-%m-%d_%H-%M")
+        label = f"Recording {date_str} UTC"
+        attachment_filename = f"recording-{date_str}.mp3"
         raw_path = cfg.work_dir / f"{rec_id}_raw"
         mp3_path = cfg.work_dir / f"{rec_id}.mp3"
         try:
@@ -364,8 +370,14 @@ def run_once(cfg: Config, dry_run: bool) -> None:
             send_email(
                 cfg,
                 subject=f"FreeConferenceCall recording: {label}",
-                body=f"Attached: {label}\nRecording ID: {rec_id}",
+                body=(
+                    f"Attached: {label}\n"
+                    f"Recording ID: {rec_id}\n"
+                    f"Reference number: {rec.get('reference_number') or 'n/a'}\n"
+                    f"Callers: {rec.get('callers')}"
+                ),
                 attachment_path=mp3_path,
+                attachment_filename=attachment_filename,
             )
             tracking[rec_id] = {
                 "label": label,
