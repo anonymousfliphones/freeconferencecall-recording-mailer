@@ -1,11 +1,10 @@
 name: FCC recording mailer
 
 on:
-  schedule:
-    # TEMPORARY: every 5 minutes, just to verify GitHub's scheduler
-    # actually fires this workflow. Revert to hourly ("4 * * * *") right
-    # after confirming -- see fcc_recording_mailer README/chat history.
-    - cron: "*/5 * * * *"
+  # NOTE: GitHub's own `schedule` trigger was unreliable for this repo (sat
+  # silent for 2+ hours across two cron settings and multiple pushes). This
+  # workflow is now triggered externally, hourly, by a separate Cloudflare
+  # Worker ("fcc-mailer-trigger") calling the workflow_dispatch API below.
   workflow_dispatch: {}
 
 jobs:
