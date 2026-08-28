@@ -7,6 +7,14 @@ on:
   # Worker ("fcc-mailer-trigger") calling the workflow_dispatch API below.
   workflow_dispatch: {}
 
+# Prevents two overlapping runs from both reading the tracking file before
+# either has saved it, which caused a duplicate email on 2026-08-28 (two
+# dispatches landed ~24s apart and both sent the same recording). A second
+# run that starts while one is in progress now queues instead of racing it.
+concurrency:
+  group: fcc-mailer
+  cancel-in-progress: false
+
 jobs:
   run:
     runs-on: ubuntu-latest
