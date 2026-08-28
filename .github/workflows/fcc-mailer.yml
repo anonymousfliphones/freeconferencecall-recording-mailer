@@ -1,0 +1,49 @@
+name: FCC recording mailer
+
+on:
+  schedule:
+    # Every 30 minutes. Adjust to taste (cron is UTC).
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run mailer
+        env:
+          FCC_EMAIL: ${{ secrets.FCC_EMAIL }}
+          FCC_PASSWORD: ${{ secrets.FCC_PASSWORD }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python fcc_recording_mailer.py
+
+      # downloaded_ids.json must persist between runs so recordings aren't
+      # re-sent. Commit it back to the repo (simplest option for a low-
+      # frequency personal job) or swap this for a cache/artifact/external
+      # store if you'd rather not commit state to git.
+      - name: Persist tracking file
+        run: |
+          if [ -n "$(git status --porcelain downloaded_ids.json)" ]; then
+            git config user.name "github-actions"
+            git config user.email "github-actions@users.noreply.github.com"
+            git add downloaded_ids.json
+            git commit -m "Update downloaded_ids.json [skip ci]"
+            git push
+          fi
