@@ -2,8 +2,8 @@ name = "fcc-mailer-trigger"
 main = "src/index.js"
 compatibility_date = "2026-08-28"
 
-# Fires every hour at :04, matching the GitHub Actions workflow's intended
+# Fires every hour at :10, matching the GitHub Actions workflow's intended
 # cadence. Independent of GitHub's own (currently unreliable) `schedule`
 # trigger -- this Worker just calls GitHub's workflow_dispatch API instead.
 [triggers]
-crons = ["4 * * * *"]
+crons = ["10 * * * *"]
