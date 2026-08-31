@@ -29,15 +29,23 @@ that logic still runs entirely inside the GitHub Actions workflow.
 
 ## How it works
 
-- `wrangler.toml` sets a Cron Trigger: `4 * * * *` (hourly, at :04 past the
-  hour — matches the interval the workflow itself is designed for; see
-  the main repo's README for the billing math behind that choice).
-- `src/index.js` exports a `scheduled` handler that `POST`s to
+- The goal is 1:30pm, 2:00pm, and 2:30pm US Eastern time, every day.
+  Cloudflare Cron Triggers only run in UTC and have no DST awareness, so
+  `wrangler.toml` lists five UTC ticks — the union of both possible Eastern
+  offsets (EDT: 17:30/18:00/18:30 UTC, EST: 18:30/19:00/19:30 UTC).
+- `src/index.js`'s `scheduled` handler checks the actual current
+  `America/New_York` wall-clock time (via `Intl.DateTimeFormat`, which
+  knows the real DST transition dates) on every tick, and only dispatches
+  the workflow on the ticks that are genuinely 1:30/2:00/2:30pm Eastern
+  right now. The other two ticks (the "wrong offset" ones) are no-ops. This
+  means the schedule automatically follows the spring/fall clock change —
+  nothing here needs to be edited twice a year.
+- The actual dispatch `POST`s to
   `https://api.github.com/repos/anonymousfliphones/fcc-recording-mailer/actions/workflows/fcc-mailer.yml/dispatches`
   using a `GITHUB_TOKEN` secret.
-- It also exports a `fetch` handler, so visiting the deployed Worker's URL
-  triggers the same dispatch on demand — useful for testing without
-  waiting for the cron.
+- It also exports a `fetch` handler (unaffected by the time gate above), so
+  visiting the deployed Worker's URL triggers a dispatch immediately,
+  regardless of time — useful for testing without waiting for the cron.
 
 ## Setup / redeploy
 
@@ -87,10 +95,13 @@ Edit the `OWNER`, `REPO`, and `WORKFLOW_FILE` constants at the top of
 
 ## Changing the schedule
 
-Edit the `crons` array in `wrangler.toml`, then redeploy. Keep in mind the
-downstream GitHub Actions workflow has its own billing math (each run costs
-GitHub Actions minutes) — see the main repo's README before making this
-more frequent than hourly.
+Edit `EASTERN_TARGET_TIMES` in `src/index.js` (the actual Eastern-time fire
+times) — and if you change how many times per day or shift them by more
+than 30 minutes, also update the `crons` array in `wrangler.toml` so it
+still covers the UTC tick(s) for both EDT and EST at each new target time.
+Redeploy after either change. Keep in mind the downstream GitHub Actions
+workflow has its own billing math (each run costs GitHub Actions minutes)
+— see the main repo's README before making this more frequent.
 
 ## Caution: don't also re-enable GitHub's native `schedule` trigger
 

@@ -2,8 +2,14 @@ name = "fcc-mailer-trigger"
 main = "src/index.js"
 compatibility_date = "2026-08-28"
 
-# Fires every hour at :27, matching the GitHub Actions workflow's intended
-# cadence. Independent of GitHub's own (currently unreliable) `schedule`
-# trigger -- this Worker just calls GitHub's workflow_dispatch API instead.
+# Runs daily at 1:30pm, 2:00pm, and 2:30pm US Eastern time. Cloudflare Cron
+# Triggers only understand UTC and have no DST awareness, so this lists the
+# UTC ticks for BOTH possible Eastern offsets (EDT = UTC-4: 17:30/18:00/18:30,
+# EST = UTC-5: 18:30/19:00/19:30 -- note 18:30 UTC covers 2:30pm EDT AND
+# 1:30pm EST). src/index.js checks the actual current America/New_York wall
+# clock time on every tick (via Intl, which knows the real DST transition
+# dates) and only dispatches the workflow on the three that are genuinely
+# 1:30/2:00/2:30pm Eastern right now -- so this correctly follows the clock
+# change every spring/fall with no manual edits needed here.
 [triggers]
-crons = ["27 * * * *"]
+crons = ["30 17 * * *", "0 18 * * *", "30 18 * * *", "0 19 * * *", "30 19 * * *"]

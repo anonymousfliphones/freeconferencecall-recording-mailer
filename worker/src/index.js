@@ -10,6 +10,25 @@ const OWNER = "anonymousfliphones";
 const REPO = "fcc-recording-mailer";
 const WORKFLOW_FILE = "fcc-mailer.yml";
 
+// Desired fire times in US Eastern local time (handles the EST/EDT switch
+// automatically -- see the comment above the crons array in wrangler.toml
+// for why this check exists alongside the cron schedule).
+const EASTERN_TARGET_TIMES = ["13:30", "14:00", "14:30"];
+
+function currentEasternHHMM() {
+  // Intl's IANA tz database knows the US DST transition dates, so this
+  // stays correct across the clock change with no manual updates.
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const hour = parts.find((p) => p.type === "hour").value;
+  const minute = parts.find((p) => p.type === "minute").value;
+  return `${hour}:${minute}`;
+}
+
 async function dispatchWorkflow(env) {
   const url = `https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`;
   const resp = await fetch(url, {
@@ -31,6 +50,11 @@ async function dispatchWorkflow(env) {
 
 export default {
   async scheduled(event, env, ctx) {
+    // The cron fires more often (in UTC) than we actually want, to cover
+    // both possible UTC offsets for Eastern time; only dispatch on the
+    // ticks that land on one of our real target times.
+    const hhmm = currentEasternHHMM();
+    if (!EASTERN_TARGET_TIMES.includes(hhmm)) return;
     ctx.waitUntil(dispatchWorkflow(env));
   },
 
