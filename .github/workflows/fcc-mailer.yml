@@ -5,7 +5,16 @@ on:
   # silent for 2+ hours across two cron settings and multiple pushes). This
   # workflow is now triggered externally, hourly, by a separate Cloudflare
   # Worker ("fcc-mailer-trigger") calling the workflow_dispatch API below.
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      test_email_override:
+        description: >
+          Optional: send to this address only instead of the real EMAIL_TO
+          secret. Use this for manual test runs (e.g. verifying a new
+          feature) so live recipients don't get test emails. Leave blank
+          for normal runs.
+        required: false
+        type: string
 
 # Prevents two overlapping runs from both reading the tracking file before
 # either has saved it, which caused a duplicate email on 2026-08-28 (two
@@ -41,6 +50,7 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_TO_OVERRIDE: ${{ github.event.inputs.test_email_override }}
         run: python fcc_recording_mailer.py
 
       # downloaded_ids.json must persist between runs so recordings aren't

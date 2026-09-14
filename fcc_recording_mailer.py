@@ -111,6 +111,14 @@ class Config:
         work_dir = Path(os.getenv("WORK_DIR", "./tmp")).resolve()
         work_dir.mkdir(parents=True, exist_ok=True)
 
+        email_to_override = os.getenv("EMAIL_TO_OVERRIDE")
+        if email_to_override:
+            log.warning(
+                "EMAIL_TO_OVERRIDE is set — sending to %s instead of the "
+                "configured EMAIL_TO. This is meant for manual test runs only.",
+                email_to_override,
+            )
+
         return cls(
             fcc_email=required["FCC_EMAIL"],
             fcc_password=required["FCC_PASSWORD"],
@@ -119,7 +127,7 @@ class Config:
             smtp_username=required["SMTP_USERNAME"],
             smtp_password=required["SMTP_PASSWORD"],
             email_from=required["EMAIL_FROM"],
-            email_to=required["EMAIL_TO"],
+            email_to=email_to_override or required["EMAIL_TO"],
             mp3_bitrate=os.getenv("MP3_BITRATE", "24k"),
             mp3_sample_rate=int(os.getenv("MP3_SAMPLE_RATE", "16000")),
             work_dir=work_dir,
