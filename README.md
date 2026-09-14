@@ -251,8 +251,7 @@ runs forever in the foreground, useful under `pm2`, `systemd`, `nssm`
 ## License
 
 FCC Recording Mailer is free to use, copy, modify, and share for
-**noncommercial purposes** — personal use, families, schools, synagogues,
-charities, and the like — under the **GPL v3 with a Noncommercial
+**noncommercial purposes** — personal use, families, and the like — under the **GPL v3 with a Noncommercial
 Restriction**. If you distribute a modified version, you must publish its
 source under the same terms.
 
