@@ -22,8 +22,10 @@ with a plain `requests` session — no browser automation needed at runtime.
 4. **Download** — streamed straight to disk with the same session.
 5. **Compress** — shells out to `ffmpeg`: mono, 16 kHz, 24 kbps MP3 (tunable),
    which keeps a typical hour-long call well under 15 MB.
-6. **Email** — sends the MP3 as an attachment via `smtplib`/`email` (Gmail
-   SMTP + App Password by default). `EMAIL_TO` accepts multiple
+6. **Email** — sends the MP3 as an attachment via `smtplib`/`email` through
+   Gmail's SMTP server with an App Password (any SMTP server works — the
+   code is provider-agnostic — but see [Prerequisites](#prerequisites) for
+   why Gmail is the recommended choice). `EMAIL_TO` accepts multiple
    comma-separated addresses. The attachment filename and subject are named
    by the call's own date/time (UTC) — e.g. `recording-2026-08-28_15-45.mp3`
    — not the FCC reference number.
@@ -58,13 +60,31 @@ authenticated browser session on this account. That means:
   - macOS: `brew install ffmpeg`
   - Debian/Ubuntu: `sudo apt-get install ffmpeg`
 - A FreeConferenceCall.com account with recordings enabled
-- An SMTP account to send from. Default here is Gmail: enable 2-Step
-  Verification on the Google account, then generate a 16-character
-  [App Password](https://myaccount.google.com/apppasswords) — this is
-  *not* your normal Gmail password, and lets the script send from your real
-  address to any recipient. A transactional provider (SendGrid, Mailgun,
-  Resend, etc.) also works via SMTP, but most require verifying a domain you
-  own before you can send to recipients other than your own account email.
+- A Gmail account to send from. Enable 2-Step Verification on it, then
+  generate a 16-character [App Password](https://myaccount.google.com/apppasswords)
+  (*not* your normal Gmail password). Set `SMTP_HOST=smtp.gmail.com`,
+  `SMTP_PORT=587`, and `SMTP_USERNAME`/`EMAIL_FROM` to the Gmail address.
+  Limits are 500 emails/day and 25 MB per attachment, which this job never
+  approaches.
+
+  **Why Gmail rather than a transactional email service** (Mailjet, Brevo,
+  SendGrid, etc.): the code is plain `smtplib` and will talk to any SMTP
+  server, but those services are built for domain-verified businesses
+  sending receipts and alerts. A personal automation that sends multi-MB
+  audio attachments from a free-mail address doesn't fit their abuse
+  heuristics, and free-tier accounts doing this tend to get suspended —
+  sometimes repeatedly, since a replacement account looks like ban evasion.
+  Gmail sending its own mail through its own servers has none of that: no
+  compliance review, no sender/domain verification, no relay in the middle.
+  If you do use a third-party service, `EMAIL_FROM` must be on a domain you
+  control and have verified with them (SPF/DKIM), or it reads as spoofing.
+
+  **Deliverability:** a brand-new sending account has no reputation, so the
+  first emails may land in recipients' spam. Since the recipient list is
+  fixed and small, fix it at the receiving end: in each recipient's Gmail,
+  add a filter (Settings → Filters → From: *your sending address* → "Never
+  send it to Spam"), add the sender as a contact, and mark any early ones
+  "Not spam". After that it's permanent.
 
 ## Setup
 
@@ -149,6 +169,20 @@ workflow commits `downloaded_ids.json` back to the repo after each run so
 tracking state persists between runs (it is **not** gitignored — that's
 intentional; it's the state store).
 
+**Manual test runs** — trigger the workflow by hand (GitHub UI: Actions →
+FCC recording mailer → Run workflow, or `gh workflow run fcc-mailer.yml`)
+with the optional `test_email_override` input set to your own address. This
+sends to that address only instead of the real `EMAIL_TO` recipients — use
+it to verify SMTP changes (new provider, new credentials, etc.) without
+spamming live recipients. Note the Cloudflare Worker's own trigger (the
+`fetch`/`scheduled` handlers) always dispatches with no override, so hitting
+the Worker's URL directly exercises the real production path.
+
+If you need to force a specific recording to be reprocessed for testing
+(e.g. to confirm a fix actually delivers), remove its entry from
+`downloaded_ids.json`, commit, push, then trigger a run — the recording
+will be re-downloaded, re-compressed, and re-sent as if new.
+
 ### Other ways to run it
 
 These all work too, if you'd rather not use GitHub Actions + Cloudflare:
@@ -187,8 +221,9 @@ runs forever in the foreground, useful under `pm2`, `systemd`, `nssm`
 | `SMTP_PORT` | no | `587` | SMTP port (STARTTLS) |
 | `SMTP_USERNAME` | yes | — | SMTP auth username |
 | `SMTP_PASSWORD` | yes | — | SMTP auth password / app password |
-| `EMAIL_FROM` | yes | — | From address |
+| `EMAIL_FROM` | yes | — | From address — the Gmail address you're sending as (same as `SMTP_USERNAME`) |
 | `EMAIL_TO` | yes | — | Recipient address(es) — comma-separated for multiple |
+| `EMAIL_TO_OVERRIDE` | no | — | If set, overrides `EMAIL_TO` for this run only — for manual test runs (see [Scheduling](#scheduling)) |
 | `MP3_BITRATE` | no | `24k` | ffmpeg audio bitrate |
 | `MP3_SAMPLE_RATE` | no | `16000` | ffmpeg sample rate (Hz) |
 | `WORK_DIR` | no | `./tmp` | Scratch dir for raw/compressed files (cleaned up after each recording) |
@@ -204,8 +239,31 @@ runs forever in the foreground, useful under `pm2`, `systemd`, `nssm`
   is deliberately **not** gitignored when running via GitHub Actions — the
   workflow commits it back to the repo as its persistent state store.
 - Use a Gmail **App Password**, not your primary account password, for SMTP.
+  Use a dedicated Gmail account for sending rather than your main one, so
+  the App Password only ever grants access to a mailbox that holds nothing
+  else.
 - The GitHub Actions example stores secrets in encrypted repo secrets, not in
   the workflow file.
 - The Cloudflare Worker's `GITHUB_TOKEN` secret only needs permission to
   dispatch this one workflow — don't use a broad personal access token for
   it if you set this up fresh.
+
+## License
+
+FCC Recording Mailer is free to use, copy, modify, and share for
+**noncommercial purposes** — personal use, families, schools, synagogues,
+charities, and the like — under the **GPL v3 with a Noncommercial
+Restriction**. If you distribute a modified version, you must publish its
+source under the same terms.
+
+Using or distributing it commercially (for example, bundling it with a paid
+service or selling a product built on it) requires permission — open an
+issue on this repo to ask.
+
+See [`LICENSE`](LICENSE) (GPL v3) and
+[`LICENSE-ADDITIONAL-TERMS`](LICENSE-ADDITIONAL-TERMS) (the noncommercial
+restriction). Because of that restriction this is *source-available*, not
+OSI open source.
+
+Required notice: Copyright (c) 2026 anonymousfliphones
+(https://github.com/anonymousfliphones/fcc-recording-mailer)
