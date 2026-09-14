@@ -1,4 +1,4 @@
-# Free Conference Call Recording Mailer
+# FreeConferenceCall Recording Mailer
 
 Logs into FreeConferenceCall.com, finds recordings you haven't processed yet,
 downloads them, compresses to a small mono voice-quality MP3, and emails the
@@ -250,7 +250,7 @@ runs forever in the foreground, useful under `pm2`, `systemd`, `nssm`
 
 ## License
 
-FCC Recording Mailer is free to use, copy, modify, and share for
+FreeConferenceCall Recording Mailer is free to use, copy, modify, and share for
 **noncommercial purposes** — personal use, families, and the like — under the **GPL v3 with a Noncommercial
 Restriction**. If you distribute a modified version, you must publish its
 source under the same terms.
