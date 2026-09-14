@@ -1,4 +1,4 @@
-# FCC Recording Mailer
+# Free Conference Call Recording Mailer
 
 Logs into FreeConferenceCall.com, finds recordings you haven't processed yet,
 downloads them, compresses to a small mono voice-quality MP3, and emails the
