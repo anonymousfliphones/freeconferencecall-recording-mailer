@@ -151,11 +151,25 @@ GitHub status incidents). `workflow_dispatch`, by contrast, has been 100%
 reliable every time it's been called.
 
 So scheduling is now handled by a **separate Cloudflare Worker**
-(`fcc-mailer-trigger`, in this repo's `worker/` directory)
-with its own Cron Trigger that fires hourly and calls GitHub's
-`workflow_dispatch` API — the same reliable trigger, just invoked
-externally instead of by GitHub's own (unreliable, for this repo) scheduler.
-See [`worker/README.md`](worker/README.md) for setup/redeploy instructions.
+(`fcc-mailer-trigger`, in this repo's `worker/` directory) with its own
+Cron Trigger that calls GitHub's `workflow_dispatch` API — the same
+reliable trigger, just invoked externally instead of by GitHub's own
+(unreliable, for this repo) scheduler.
+
+It fires at **fixed times of day that you choose** — currently 1:30pm,
+2:00pm, and 2:30pm US Eastern — rather than polling on an interval. Pick
+times shortly after your calls usually end; a recording that finishes
+after the last slot is picked up the next day. The Worker handles the
+EST/EDT clock change automatically. To change the times, see
+[`worker/README.md`](worker/README.md), which also has setup/redeploy
+instructions.
+
+**Cost:** each run uses roughly 1 minute of GitHub Actions time when there's
+nothing new, and 2–3 minutes when it processes a recording. At three runs a
+day that's well under 300 minutes a month. GitHub-hosted runners are free
+for public repositories; if you run this from a private fork, the free
+tier is 2,000 minutes a month, so there's still plenty of headroom — just
+don't turn it into every-5-minutes polling.
 
 A `concurrency` guard (`group: fcc-mailer`) is set on the workflow so two
 overlapping runs can't race each other — this is what caused a real
