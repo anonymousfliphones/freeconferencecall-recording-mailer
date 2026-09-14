@@ -46,6 +46,8 @@ that logic still runs entirely inside the GitHub Actions workflow.
 - It also exports a `fetch` handler (unaffected by the time gate above), so
   visiting the deployed Worker's URL triggers a dispatch immediately,
   regardless of time — useful for testing without waiting for the cron.
+  This requires a `TRIGGER_TOKEN` secret (see below) — without it, anyone
+  who finds the URL could spam-trigger your workflow.
 
 ## Setup / redeploy
 
@@ -75,12 +77,24 @@ authenticated locally, already has sufficient scope):
 printf '%s' "$(gh auth token)" | npx wrangler secret put GITHUB_TOKEN
 ```
 
-Test it immediately without waiting for the cron:
+Also set a `TRIGGER_TOKEN` secret — a random string that guards the manual
+`fetch` trigger below so the public Worker URL can't be used by anyone else
+to spam-trigger your workflow:
 
 ```bash
-curl https://fcc-mailer-trigger.anonymousfliphones.workers.dev
+printf '%s' "$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" | npx wrangler secret put TRIGGER_TOKEN
+```
+
+Test it immediately without waiting for the cron (replace `YOUR_TOKEN` with
+the value you just set):
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" https://fcc-mailer-trigger.anonymousfliphones.workers.dev
 # -> "Dispatched fcc-mailer.yml workflow_dispatch."
 ```
+
+A request with no token, or the wrong one, gets `401 Unauthorized` and does
+not trigger anything.
 
 Then confirm on the GitHub side:
 

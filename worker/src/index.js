@@ -58,9 +58,18 @@ export default {
     ctx.waitUntil(dispatchWorkflow(env));
   },
 
-  // Manual test endpoint: visit the deployed Worker's URL to trigger it
-  // on demand without waiting for the cron.
+  // Manual test endpoint: visit the deployed Worker's URL (with the right
+  // token) to trigger it on demand without waiting for the cron. Requires
+  // TRIGGER_TOKEN so the public URL can't be used to spam-trigger runs.
   async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const authHeader = request.headers.get("Authorization") || "";
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, "");
+    const token = bearerToken || url.searchParams.get("token") || "";
+    if (!env.TRIGGER_TOKEN || token !== env.TRIGGER_TOKEN) {
+      return new Response("Unauthorized\n", { status: 401 });
+    }
+
     try {
       await dispatchWorkflow(env);
       return new Response("Dispatched fcc-mailer.yml workflow_dispatch.\n");
