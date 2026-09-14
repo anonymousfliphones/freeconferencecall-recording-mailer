@@ -3,12 +3,12 @@
 A tiny Cloudflare Worker whose only job is to fire this repo's own
 [fcc-mailer.yml](../.github/workflows/fcc-mailer.yml) GitHub Actions
 workflow on a reliable schedule. Lives at `worker/` in the
-`fcc-recording-mailer` repo, deployed independently to Cloudflare (it does
+`freeconferencecall-recording-mailer` repo, deployed independently to Cloudflare (it does
 not run as part of the GitHub Actions workflow itself).
 
 ## Why this exists
 
-`fcc-recording-mailer`'s workflow originally used GitHub Actions' own
+`freeconferencecall-recording-mailer`'s workflow originally used GitHub Actions' own
 `schedule` (cron) trigger. That trigger never fired — not once — across
 2+ hours, two different cron intervals, a CLI push, and a web-UI edit,
 despite the workflow being fully enabled and correctly configured (ruled
@@ -41,7 +41,7 @@ that logic still runs entirely inside the GitHub Actions workflow.
   means the schedule automatically follows the spring/fall clock change —
   nothing here needs to be edited twice a year.
 - The actual dispatch `POST`s to
-  `https://api.github.com/repos/anonymousfliphones/fcc-recording-mailer/actions/workflows/fcc-mailer.yml/dispatches`
+  `https://api.github.com/repos/anonymousfliphones/freeconferencecall-recording-mailer/actions/workflows/fcc-mailer.yml/dispatches`
   using a `GITHUB_TOKEN` secret.
 - It also exports a `fetch` handler (unaffected by the time gate above), so
   visiting the deployed Worker's URL triggers a dispatch immediately,
@@ -55,7 +55,7 @@ Requires Node.js/npm (uses `npx wrangler`, no global install needed) and a
 Cloudflare API token.
 
 ```bash
-cd fcc-recording-mailer/worker
+cd freeconferencecall-recording-mailer/worker
 
 # Cloudflare API token: dash.cloudflare.com/profile/api-tokens -> Create
 # Token -> "Edit Cloudflare Workers" template. Scope it to your one
@@ -99,7 +99,7 @@ not trigger anything.
 Then confirm on the GitHub side:
 
 ```bash
-gh run list --repo anonymousfliphones/fcc-recording-mailer --limit 3
+gh run list --repo anonymousfliphones/freeconferencecall-recording-mailer --limit 3
 ```
 
 ## Changing the target repo/workflow

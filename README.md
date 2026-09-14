@@ -89,7 +89,7 @@ authenticated browser session on this account. That means:
 ## Setup
 
 ```bash
-cd fcc-recording-mailer
+cd freeconferencecall-recording-mailer
 python -m venv venv
 # Windows:
 venv\Scripts\activate
@@ -190,19 +190,19 @@ These all work too, if you'd rather not use GitHub Actions + Cloudflare:
 **Cron (Linux/macOS)**
 
 ```cron
-*/15 * * * * cd /path/to/fcc-recording-mailer && venv/bin/python fcc_recording_mailer.py >> run.log 2>&1
+*/15 * * * * cd /path/to/freeconferencecall-recording-mailer && venv/bin/python fcc_recording_mailer.py >> run.log 2>&1
 ```
 
 **Windows Task Scheduler** — Basic Task on a recurring trigger:
 
-- Program/script: `C:\path\to\fcc-recording-mailer\venv\Scripts\python.exe`
+- Program/script: `C:\path\to\freeconferencecall-recording-mailer\venv\Scripts\python.exe`
 - Arguments: `fcc_recording_mailer.py`
-- Start in: `C:\path\to\fcc-recording-mailer`
+- Start in: `C:\path\to\freeconferencecall-recording-mailer`
 
 Or from an elevated PowerShell prompt:
 
 ```powershell
-$action = New-ScheduledTaskAction -Execute "C:\path\to\fcc-recording-mailer\venv\Scripts\python.exe" -Argument "fcc_recording_mailer.py" -WorkingDirectory "C:\path\to\fcc-recording-mailer"
+$action = New-ScheduledTaskAction -Execute "C:\path\to\freeconferencecall-recording-mailer\venv\Scripts\python.exe" -Argument "fcc_recording_mailer.py" -WorkingDirectory "C:\path\to\freeconferencecall-recording-mailer"
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15) -RepetitionDuration ([TimeSpan]::MaxValue)
 Register-ScheduledTask -TaskName "FCC Recording Mailer" -Action $action -Trigger $trigger
 ```
@@ -265,4 +265,4 @@ restriction). Because of that restriction this is *source-available*, not
 OSI open source.
 
 Required notice: Copyright (c) 2026 anonymousfliphones
-(https://github.com/anonymousfliphones/fcc-recording-mailer)
+(https://github.com/anonymousfliphones/freeconferencecall-recording-mailer)

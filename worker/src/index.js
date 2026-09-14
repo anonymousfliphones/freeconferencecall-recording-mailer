@@ -7,7 +7,7 @@
  */
 
 const OWNER = "anonymousfliphones";
-const REPO = "fcc-recording-mailer";
+const REPO = "freeconferencecall-recording-mailer";
 const WORKFLOW_FILE = "fcc-mailer.yml";
 
 // Desired fire times in US Eastern local time (handles the EST/EDT switch
