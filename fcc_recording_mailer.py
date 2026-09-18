@@ -327,19 +327,28 @@ def send_email(
         data, maintype="audio", subtype="mpeg", filename=attachment_filename
     )
 
-    log.info("Sending email to %s via %s:%d", cfg.email_to, cfg.smtp_host, cfg.smtp_port)
+    recipients = [a.strip() for a in cfg.email_to.split(",") if a.strip()]
+    log.info(
+        "Sending email to %d recipient(s) (%s) via %s:%d",
+        len(recipients), cfg.email_to, cfg.smtp_host, cfg.smtp_port,
+    )
     with smtplib.SMTP(cfg.smtp_host, cfg.smtp_port, timeout=60) as server:
         server.starttls()
         server.login(cfg.smtp_username, cfg.smtp_password)
-        server.send_message(msg)
-    log.info("Email sent.")
+        # send_message only raises if *every* recipient is refused; a partial
+        # refusal comes back as a dict, which would otherwise be silently lost.
+        refused = server.send_message(msg, to_addrs=recipients)
+    if refused:
+        raise RuntimeError(f"SMTP server refused {len(refused)} recipient(s): {refused}")
+    log.info("Email sent to all %d recipient(s).", len(recipients))
 
 
 # --------------------------------------------------------------------------
 # Main run
 # --------------------------------------------------------------------------
 
-def run_once(cfg: Config, dry_run: bool) -> None:
+def run_once(cfg: Config, dry_run: bool) -> int:
+    """Process new recordings. Returns the number that failed."""
     tracking = load_tracking(cfg.tracking_file)
 
     session = new_session()
@@ -358,10 +367,11 @@ def run_once(cfg: Config, dry_run: bool) -> None:
                 r["conf_rec_id"], r.get("reference_number"), r.get("start_time"),
                 r.get("recording_duration"), r.get("file_size"),
             )
-        return
+        return 0
 
     new_recordings = new_recordings[: cfg.max_recordings_per_run]
 
+    failed = 0
     for rec in new_recordings:
         rec_id = str(rec["conf_rec_id"])
         call_date = datetime.fromtimestamp(rec.get("start_time", 0), tz=timezone.utc)
@@ -395,6 +405,7 @@ def run_once(cfg: Config, dry_run: bool) -> None:
             save_tracking(cfg.tracking_file, tracking)
             log.info("Recording %s processed and marked as done.", rec_id)
         except Exception:
+            failed += 1
             log.exception("Failed to process recording %s; will retry next run.", rec_id)
         finally:
             for p in (raw_path, mp3_path):
@@ -403,6 +414,10 @@ def run_once(cfg: Config, dry_run: bool) -> None:
                         p.unlink()
                 except OSError:
                     log.warning("Could not delete temp file %s", p)
+
+    if failed:
+        log.error("%d of %d recording(s) failed this run.", failed, len(new_recordings))
+    return failed
 
 
 def main() -> None:
@@ -431,7 +446,10 @@ def main() -> None:
                 log.exception("Run failed; will retry after the interval.")
             time.sleep(args.interval)
     else:
-        run_once(cfg, dry_run=args.dry_run)
+        # Non-zero exit makes a GitHub Actions run show as failed (and email
+        # you) instead of a green check that quietly retried nothing.
+        if run_once(cfg, dry_run=args.dry_run):
+            raise SystemExit(1)
 
 
 if __name__ == "__main__":

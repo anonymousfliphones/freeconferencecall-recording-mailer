@@ -58,6 +58,11 @@ jobs:
       # frequency personal job) or swap this for a cache/artifact/external
       # store if you'd rather not commit state to git.
       - name: Persist tracking file
+        # Must run even if the mailer step failed: a partial run (some
+        # recordings sent, one failed) exits non-zero but has still updated
+        # the tracking file for the ones that went out. Skipping this would
+        # re-send those next run.
+        if: always()
         run: |
           if [ -n "$(git status --porcelain downloaded_ids.json)" ]; then
             git config user.name "github-actions"
