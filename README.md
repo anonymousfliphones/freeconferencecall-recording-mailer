@@ -157,9 +157,10 @@ reliable trigger, just invoked externally instead of by GitHub's own
 (unreliable, for this repo) scheduler.
 
 It fires at **fixed times of day that you choose** — currently 1:30pm,
-2:00pm, and 2:30pm US Eastern — rather than polling on an interval. Pick
-times shortly after your calls usually end; a recording that finishes
-after the last slot is picked up the next day. The Worker handles the
+2:00pm, and 2:30pm US Eastern, every day except Saturday — rather than
+polling on an interval. Pick times shortly after your calls usually end; a
+recording that finishes after the last slot is picked up at the next run
+(Friday's late ones wait until Sunday). The Worker handles the
 EST/EDT clock change automatically. To change the times, see
 [`worker/README.md`](worker/README.md), which also has setup/redeploy
 instructions.
@@ -178,7 +179,8 @@ from the Worker's first automatic firing and both processed the same
 recording before either had saved the updated tracking file.
 
 Required repository secrets: `FCC_EMAIL`, `FCC_PASSWORD`, `SMTP_HOST`,
-`SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM`, `EMAIL_TO`. The
+`SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `EMAIL_FROM`, `EMAIL_TO`
+(optional: `EMAIL_TO_FRIDAY`). The
 workflow commits `downloaded_ids.json` back to the repo after each run so
 tracking state persists between runs (it is **not** gitignored — that's
 intentional; it's the state store).
@@ -237,6 +239,7 @@ runs forever in the foreground, useful under `pm2`, `systemd`, `nssm`
 | `SMTP_PASSWORD` | yes | — | SMTP auth password / app password |
 | `EMAIL_FROM` | yes | — | From address — the Gmail address you're sending as (same as `SMTP_USERNAME`) |
 | `EMAIL_TO` | yes | — | Recipient address(es) — comma-separated for multiple |
+| `EMAIL_TO_FRIDAY` | no | — | Extra recipient(s), comma-separated, added only for calls held on a Friday (US Eastern). Ignored when `EMAIL_TO_OVERRIDE` is set |
 | `EMAIL_TO_OVERRIDE` | no | — | If set, overrides `EMAIL_TO` for this run only — for manual test runs (see [Scheduling](#scheduling)) |
 | `MP3_BITRATE` | no | `24k` | ffmpeg audio bitrate |
 | `MP3_SAMPLE_RATE` | no | `16000` | ffmpeg sample rate (Hz) |

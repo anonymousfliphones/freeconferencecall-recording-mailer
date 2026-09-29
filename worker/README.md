@@ -29,7 +29,8 @@ that logic still runs entirely inside the GitHub Actions workflow.
 
 ## How it works
 
-- The goal is 1:30pm, 2:00pm, and 2:30pm US Eastern time, every day.
+- The goal is 1:30pm, 2:00pm, and 2:30pm US Eastern time, every day except
+  Saturday (Eastern), when nothing is dispatched.
   Cloudflare Cron Triggers only run in UTC and have no DST awareness, so
   `wrangler.toml` lists five UTC ticks — the union of both possible Eastern
   offsets (EDT: 17:30/18:00/18:30 UTC, EST: 18:30/19:00/19:30 UTC).
