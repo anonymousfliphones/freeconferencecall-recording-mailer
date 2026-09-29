@@ -15,6 +15,17 @@ const WORKFLOW_FILE = "fcc-mailer.yml";
 // for why this check exists alongside the cron schedule).
 const EASTERN_TARGET_TIMES = ["13:30", "14:00", "14:30"];
 
+// Eastern-time weekdays on which nothing is sent. A recording that's ready
+// on one of these days just waits for the next day's run.
+const EASTERN_SKIP_DAYS = ["Sat"];
+
+function currentEasternWeekday() {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+  }).format(new Date());
+}
+
 function currentEasternHHMM() {
   // Intl's IANA tz database knows the US DST transition dates, so this
   // stays correct across the clock change with no manual updates.
@@ -55,6 +66,7 @@ export default {
     // ticks that land on one of our real target times.
     const hhmm = currentEasternHHMM();
     if (!EASTERN_TARGET_TIMES.includes(hhmm)) return;
+    if (EASTERN_SKIP_DAYS.includes(currentEasternWeekday())) return;
     ctx.waitUntil(dispatchWorkflow(env));
   },
 

@@ -50,6 +50,7 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          EMAIL_TO_FRIDAY: ${{ secrets.EMAIL_TO_FRIDAY }}
           EMAIL_TO_OVERRIDE: ${{ github.event.inputs.test_email_override }}
         run: python fcc_recording_mailer.py
 
