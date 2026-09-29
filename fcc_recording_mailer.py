@@ -35,6 +35,7 @@ from datetime import datetime, timezone
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 try:
     # Makes Python's SSL verification use the OS certificate store (Windows
@@ -60,6 +61,8 @@ logging.basicConfig(
 log = logging.getLogger("fcc_recording_mailer")
 
 BASE_URL = "https://www.freeconferencecall.com"
+# Weekday checks (e.g. EMAIL_TO_FRIDAY) use the call's local date here, not UTC.
+LOCAL_TZ = ZoneInfo("America/New_York")
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
@@ -80,6 +83,9 @@ class Config:
     smtp_password: str
     email_from: str
     email_to: str
+    # Extra recipients added only for calls that took place on a Friday
+    # (LOCAL_TZ). Empty when unset, or when EMAIL_TO_OVERRIDE is in use.
+    email_to_friday: str
 
     mp3_bitrate: str
     mp3_sample_rate: int
@@ -128,6 +134,8 @@ class Config:
             smtp_password=required["SMTP_PASSWORD"],
             email_from=required["EMAIL_FROM"],
             email_to=email_to_override or required["EMAIL_TO"],
+            # A test override must never reach live recipients, Friday ones included.
+            email_to_friday="" if email_to_override else os.getenv("EMAIL_TO_FRIDAY", ""),
             mp3_bitrate=os.getenv("MP3_BITRATE", "24k"),
             mp3_sample_rate=int(os.getenv("MP3_SAMPLE_RATE", "16000")),
             work_dir=work_dir,
@@ -313,12 +321,13 @@ def compress_audio(input_path: Path, output_path: Path, bitrate: str, sample_rat
 # --------------------------------------------------------------------------
 
 def send_email(
-    cfg: Config, subject: str, body: str, attachment_path: Path, attachment_filename: str
+    cfg: Config, email_to: str, subject: str, body: str,
+    attachment_path: Path, attachment_filename: str,
 ) -> None:
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = cfg.email_from
-    msg["To"] = cfg.email_to
+    msg["To"] = email_to
     msg.set_content(body)
 
     with open(attachment_path, "rb") as f:
@@ -327,10 +336,10 @@ def send_email(
         data, maintype="audio", subtype="mpeg", filename=attachment_filename
     )
 
-    recipients = [a.strip() for a in cfg.email_to.split(",") if a.strip()]
+    recipients = [a.strip() for a in email_to.split(",") if a.strip()]
     log.info(
         "Sending email to %d recipient(s) (%s) via %s:%d",
-        len(recipients), cfg.email_to, cfg.smtp_host, cfg.smtp_port,
+        len(recipients), email_to, cfg.smtp_host, cfg.smtp_port,
     )
     with smtplib.SMTP(cfg.smtp_host, cfg.smtp_port, timeout=60) as server:
         server.starttls()
@@ -380,6 +389,10 @@ def run_once(cfg: Config, dry_run: bool) -> int:
         attachment_filename = f"recording-{date_str}.mp3"
         raw_path = cfg.work_dir / f"{rec_id}_raw"
         mp3_path = cfg.work_dir / f"{rec_id}.mp3"
+        email_to = cfg.email_to
+        if cfg.email_to_friday and call_date.astimezone(LOCAL_TZ).weekday() == 4:
+            log.info("Friday call — also sending to EMAIL_TO_FRIDAY.")
+            email_to = f"{email_to},{cfg.email_to_friday}"
         try:
             log.info("Processing recording %s (%s)", rec_id, label)
             download_url = resolve_download_url(session, rec)
@@ -387,6 +400,7 @@ def run_once(cfg: Config, dry_run: bool) -> int:
             compress_audio(raw_path, mp3_path, cfg.mp3_bitrate, cfg.mp3_sample_rate)
             send_email(
                 cfg,
+                email_to=email_to,
                 subject=f"FreeConferenceCall recording: {label}",
                 body=(
                     f"Attached: {label}\n"
