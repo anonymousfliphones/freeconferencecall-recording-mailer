@@ -267,19 +267,13 @@ runs forever in the foreground, useful under `pm2`, `systemd`, `nssm`
 
 ## License
 
-FreeConferenceCall Recording Mailer is free to use, copy, modify, and share for
-**noncommercial purposes** — personal use, families, and the like — under the **GPL v3 with a Noncommercial
-Restriction**. If you distribute a modified version, you must publish its
-source under the same terms.
+FreeConferenceCall Recording Mailer is free to use, copy, and share for **noncommercial purposes** —
+personal use, family, schools, charities, and the like — under the
+[PolyForm Noncommercial License 1.0.0](LICENSE.md).
 
-Using or distributing it commercially (for example, bundling it with a paid
-service or selling a product built on it) requires permission — open an
-issue on this repo to ask.
+Using or distributing it **commercially** (for example, preinstalling it on
+phones you sell, or bundling it with a paid service) requires permission —
+[open an issue](https://github.com/anonymousfliphones/freeconferencecall-recording-mailer/issues/new) on this page to ask.
 
-See [`LICENSE`](LICENSE) (GPL v3) and
-[`LICENSE-ADDITIONAL-TERMS`](LICENSE-ADDITIONAL-TERMS) (the noncommercial
-restriction). Because of that restriction this is *source-available*, not
-OSI open source.
-
-Required notice: Copyright (c) 2026 anonymousfliphones
+Required Notice: Copyright anonymousfliphones
 (https://github.com/anonymousfliphones/freeconferencecall-recording-mailer)
