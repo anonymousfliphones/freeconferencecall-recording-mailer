@@ -89,6 +89,9 @@ class Config:
 
     mp3_bitrate: str
     mp3_sample_rate: int
+    # Google Groups reject messages over this size, so group recipients get
+    # a separate lower-bitrate copy sized to fit.
+    group_max_message_mb: float
 
     work_dir: Path
     tracking_file: Path
@@ -138,6 +141,7 @@ class Config:
             email_to_friday="" if email_to_override else os.getenv("EMAIL_TO_FRIDAY", ""),
             mp3_bitrate=os.getenv("MP3_BITRATE", "24k"),
             mp3_sample_rate=int(os.getenv("MP3_SAMPLE_RATE", "16000")),
+            group_max_message_mb=float(os.getenv("GROUP_MAX_MESSAGE_MB", "8")),
             work_dir=work_dir,
             tracking_file=Path(os.getenv("TRACKING_FILE", "./downloaded_ids.json")).resolve(),
             max_recordings_per_run=int(os.getenv("MAX_RECORDINGS_PER_RUN", "5")),
@@ -316,6 +320,50 @@ def compress_audio(input_path: Path, output_path: Path, bitrate: str, sample_rat
     log.info("Compressed file size: %.2f MB", size_mb)
 
 
+def audio_duration_seconds(path: Path) -> float:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed (exit {result.returncode}):\n{result.stderr}")
+    return float(result.stdout.strip())
+
+
+def compress_audio_to_fit(
+    input_path: Path, output_path: Path, sample_rate: int, max_message_mb: float
+) -> None:
+    """Encode at the highest bitrate whose email still fits max_message_mb."""
+    # Attachments are base64-encoded (~1.37x on the wire); leave room for headers.
+    max_file_bytes = (max_message_mb * 1_000_000 - 100_000) / 1.37
+    duration = audio_duration_seconds(input_path)
+    kbps = min(24.0, max_file_bytes * 8 / duration / 1000 * 0.95)
+    while True:
+        if kbps < 8:
+            raise RuntimeError(
+                f"{duration / 60:.0f}-minute recording can't fit in "
+                f"{max_message_mb:g} MB even at 8 kbps"
+            )
+        # ABR (-abr 1) lets lame hit an arbitrary average, not just the fixed
+        # MP3 bitrate steps (8/16/24k), so the file lands just under the limit.
+        cmd = [
+            "ffmpeg", "-y", "-i", str(input_path),
+            "-ac", "1", "-ar", str(sample_rate),
+            "-codec:a", "libmp3lame", "-abr", "1", "-b:a", f"{kbps:.1f}k",
+            str(output_path),
+        ]
+        log.info("Compressing group copy: %s", " ".join(cmd))
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed (exit {result.returncode}):\n{result.stderr}")
+        size = output_path.stat().st_size
+        log.info("Group copy size: %.2f MB at %.1f kbps", size / (1024 * 1024), kbps)
+        if size <= max_file_bytes:
+            return
+        kbps *= 0.9
+
+
 # --------------------------------------------------------------------------
 # Email
 # --------------------------------------------------------------------------
@@ -389,28 +437,47 @@ def run_once(cfg: Config, dry_run: bool) -> int:
         attachment_filename = f"recording-{date_str}.mp3"
         raw_path = cfg.work_dir / f"{rec_id}_raw"
         mp3_path = cfg.work_dir / f"{rec_id}.mp3"
+        group_mp3_path = cfg.work_dir / f"{rec_id}_group.mp3"
         email_to = cfg.email_to
         if cfg.email_to_friday and call_date.astimezone(LOCAL_TZ).weekday() == 4:
             log.info("Friday call — also sending to EMAIL_TO_FRIDAY.")
             email_to = f"{email_to},{cfg.email_to_friday}"
+        addresses = [a.strip() for a in email_to.split(",") if a.strip()]
+        group_to = ",".join(a for a in addresses if a.lower().endswith("@googlegroups.com"))
+        regular_to = ",".join(a for a in addresses if not a.lower().endswith("@googlegroups.com"))
+        subject = f"FreeConferenceCall recording: {label}"
+        body = (
+            f"Attached: {label}\n"
+            f"Recording ID: {rec_id}\n"
+            f"Reference number: {rec.get('reference_number') or 'n/a'}\n"
+            f"Callers: {rec.get('callers')}"
+        )
         try:
             log.info("Processing recording %s (%s)", rec_id, label)
             download_url = resolve_download_url(session, rec)
             download_recording(session, download_url, raw_path)
-            compress_audio(raw_path, mp3_path, cfg.mp3_bitrate, cfg.mp3_sample_rate)
-            send_email(
-                cfg,
-                email_to=email_to,
-                subject=f"FreeConferenceCall recording: {label}",
-                body=(
-                    f"Attached: {label}\n"
-                    f"Recording ID: {rec_id}\n"
-                    f"Reference number: {rec.get('reference_number') or 'n/a'}\n"
-                    f"Callers: {rec.get('callers')}"
-                ),
-                attachment_path=mp3_path,
-                attachment_filename=attachment_filename,
-            )
+            if regular_to:
+                compress_audio(raw_path, mp3_path, cfg.mp3_bitrate, cfg.mp3_sample_rate)
+            group_ok = True
+            if group_to:
+                try:
+                    compress_audio_to_fit(
+                        raw_path, group_mp3_path, cfg.mp3_sample_rate, cfg.group_max_message_mb
+                    )
+                except Exception:
+                    # Don't hold back the regular recipients' copy over this.
+                    group_ok = False
+                    log.exception("Could not make a small enough copy for %s; skipping it.", group_to)
+            if regular_to:
+                send_email(cfg, regular_to, subject, body, mp3_path, attachment_filename)
+            if group_to and group_ok:
+                send_email(
+                    cfg, group_to, subject,
+                    body + "\n\n(Reduced audio quality to fit the Google Groups size limit.)",
+                    group_mp3_path, attachment_filename,
+                )
+            if not group_ok:
+                failed += 1
             tracking[rec_id] = {
                 "label": label,
                 "start_time": rec.get("start_time"),
@@ -422,7 +489,7 @@ def run_once(cfg: Config, dry_run: bool) -> int:
             failed += 1
             log.exception("Failed to process recording %s; will retry next run.", rec_id)
         finally:
-            for p in (raw_path, mp3_path):
+            for p in (raw_path, mp3_path, group_mp3_path):
                 try:
                     if p.exists():
                         p.unlink()
