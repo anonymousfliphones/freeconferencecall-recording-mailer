@@ -243,6 +243,7 @@ runs forever in the foreground, useful under `pm2`, `systemd`, `nssm`
 | `EMAIL_TO_OVERRIDE` | no | — | If set, overrides `EMAIL_TO` for this run only — for manual test runs (see [Scheduling](#scheduling)) |
 | `MP3_BITRATE` | no | `24k` | ffmpeg audio bitrate |
 | `MP3_SAMPLE_RATE` | no | `16000` | ffmpeg sample rate (Hz) |
+| `GROUP_MAX_MESSAGE_MB` | no | `8` | Size limit for `@googlegroups.com` recipients. Google Groups reject bigger messages, so they get a separate lower-bitrate copy sized to fit; other recipients keep the full-quality file |
 | `WORK_DIR` | no | `./tmp` | Scratch dir for raw/compressed files (cleaned up after each recording) |
 | `TRACKING_FILE` | no | `./downloaded_ids.json` | Where processed recording IDs are recorded |
 | `MAX_RECORDINGS_PER_RUN` | no | `5` | Cap per run, oldest-unprocessed-first |
